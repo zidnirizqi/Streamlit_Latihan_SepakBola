@@ -3,6 +3,10 @@ import requests as req
 from bs4 import BeautifulSoup as bs
 from datetime import datetime
 from pymongo import MongoClient
+import pandas as pd
+from collections import Counter
+import plotly.express as px
+import dateparser
 
 # Header User-Agent
 headers = {
@@ -40,10 +44,10 @@ def scrape_detik(jumlah_halaman):
                 date_tag = date_div.find('span') if date_div else None
                 date = date_tag['title'] if date_tag else 'Tanggal tidak ditemukan'
 
-                try:
-                    datetime.strptime(date, "%A, %d %b %Y %H:%M WIB")
-                except:
+                parsed_date = dateparser.parse(date)
+                if not parsed_date:
                     st.warning(f"Format tanggal tidak valid: {date}")
+                    continue
 
                 detail_page = req.get(link, headers=headers)
                 detail_soup = bs(detail_page.text, 'html.parser')
@@ -61,7 +65,7 @@ def scrape_detik(jumlah_halaman):
 
                 article_data = {
                     'title': title,
-                    'date': date,
+                    'date': parsed_date.strftime("%Y-%m-%d %H:%M:%S"),
                     'link': link,
                     'content': content
                 }
@@ -87,6 +91,7 @@ if st.button("Mulai Scraping"):
         results = scrape_detik(jumlah_halaman)
     st.success(f"Berhasil mengambil {len(results)} artikel.")
 
+    # Tampilkan hasil scraping
     for art in results:
         html_content = f"""
         <div style='border:1px solid #ccc; padding:15px; margin-bottom:10px; border-radius:8px;'>
@@ -97,3 +102,31 @@ if st.button("Mulai Scraping"):
         </div>
         """
         st.markdown(html_content, unsafe_allow_html=True)
+
+    # Grafik Jumlah Artikel per Tahun dengan Plotly
+    tahun_list = []
+    for art in results:
+        try:
+            parsed_date = datetime.strptime(art['date'], "%Y-%m-%d %H:%M:%S")
+            tahun_list.append(parsed_date.year)
+        except:
+            continue
+
+    counter_tahun = Counter(tahun_list)
+    df_tahun = pd.DataFrame({
+        'Tahun': list(counter_tahun.keys()),
+        'Jumlah Artikel': list(counter_tahun.values())
+    }).sort_values('Tahun')
+
+    if df_tahun.empty:
+        st.warning("Tidak ada data tahun yang valid untuk ditampilkan dalam grafik.")
+    else:
+        st.subheader("Grafik Jumlah Artikel per Tahun (Plotly)")
+        fig = px.bar(df_tahun, x='Tahun', y='Jumlah Artikel',
+                     labels={'Jumlah Artikel': 'Jumlah Artikel', 'Tahun': 'Tahun'},
+                     title='Distribusi Artikel per Tahun',
+                     color='Jumlah Artikel',
+                     text='Jumlah Artikel')
+        fig.update_traces(textposition='outside')
+        fig.update_layout(xaxis=dict(dtick=1))
+        st.plotly_chart(fig, use_container_width=True)
