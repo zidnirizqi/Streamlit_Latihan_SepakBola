@@ -7,6 +7,8 @@ import pandas as pd
 from collections import Counter
 import plotly.express as px
 import dateparser
+from wordcloud import WordCloud
+import matplotlib.pyplot as plt
 
 # Header User-Agent
 headers = {
@@ -103,7 +105,7 @@ if st.button("Mulai Scraping"):
         """
         st.markdown(html_content, unsafe_allow_html=True)
 
-    # Grafik Jumlah Artikel per Tahun dengan Plotly
+    # Grafik Jumlah Artikel per Tahun
     tahun_list = []
     for art in results:
         try:
@@ -130,3 +132,33 @@ if st.button("Mulai Scraping"):
         fig.update_traces(textposition='outside')
         fig.update_layout(xaxis=dict(dtick=1))
         st.plotly_chart(fig, use_container_width=True)
+
+        # Pie Chart
+        st.subheader("Distribusi Artikel per Tahun (Pie Chart)")
+        fig_pie = px.pie(df_tahun, names='Tahun', values='Jumlah Artikel',
+                         title='Persentase Artikel per Tahun', hole=0.4)
+        st.plotly_chart(fig_pie, use_container_width=True)
+
+    # Grafik Jumlah Kata
+    st.subheader("Grafik Jumlah Kata dalam Artikel")
+    df_kata = pd.DataFrame([{
+        'Judul': art['title'],
+        'Jumlah Kata': len(art['content'].split())
+    } for art in results]).sort_values(by='Jumlah Kata', ascending=False)
+
+    fig_kata = px.bar(df_kata, x='Judul', y='Jumlah Kata',
+                      title='Jumlah Kata per Artikel',
+                      text='Jumlah Kata',
+                      color='Jumlah Kata')
+    fig_kata.update_layout(xaxis_tickangle=-45, xaxis_title='Judul Artikel', yaxis_title='Jumlah Kata')
+    fig_kata.update_traces(textposition='outside')
+    st.plotly_chart(fig_kata, use_container_width=True)
+
+    # Word Cloud
+    st.subheader("Word Cloud dari Isi Artikel")
+    all_text = ' '.join([art['content'] for art in results])
+    wordcloud = WordCloud(width=800, height=400, background_color='white').generate(all_text)
+    fig_wc, ax = plt.subplots(figsize=(10, 5))
+    ax.imshow(wordcloud, interpolation='bilinear')
+    ax.axis('off')
+    st.pyplot(fig_wc)
